@@ -34,14 +34,24 @@ def custom_score(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
+    loc = game.get_player_location(player)
+
+    # Utility functions for handling winning or losing terminal states]
     if game.is_loser(player):
         return float("-inf")
-
+ 
     if game.is_winner(player):
         return float("inf")
 
-    return float(len(game.get_legal_moves(player)) - len(game.get_legal_moves(game.get_opponent(player))))/float(len(game.get_blank_spaces()))
+    # Porcentage of remaining moves
+    remaining_moves = float(len(game.get_blank_spaces()))/float(game.height*game.width)
 
+    # Centrality Weight
+    centrality_w = 1.0 - abs(float((loc[0] - game.height / 2. + loc[0] - game.height / 2.)))/float(game.width / 2. + game.height / 2.)
+
+    # Centrality weigthed difference of my moves vs my opponent moves (weighted by porcentage of remaining moves)
+    # As the game progresses the score moves from closed based to open based.
+    return centrality_w*float(len(game.get_legal_moves(player)) - remaining_moves*len(game.get_legal_moves(game.get_opponent(player))))
 
 def custom_score_2(game, player):
     """Calculate the heuristic value of a game state from the point of view
@@ -65,13 +75,20 @@ def custom_score_2(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
+    loc = game.get_player_location(player)
+
+    # Utility functions for handling winning or losing terminal states
     if game.is_loser(player):
         return float("-inf")
 
     if game.is_winner(player):
         return float("inf")
 
-    return float(len(game.get_legal_moves(player)))
+    # Centrality Weight
+    w = 1.0 - abs(float((loc[0] - game.height / 2. + loc[0] - game.height / 2.)))/float(game.width / 2. + game.height / 2.)
+
+    # Centrality weigthed difference of my moves vs my opponent moves
+    return w*float(len(game.get_legal_moves(player)) - len(game.get_legal_moves(game.get_opponent(player))))
 
 
 def custom_score_3(game, player):
@@ -96,13 +113,28 @@ def custom_score_3(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
+    loc = game.get_player_location(player)
+
+    # Utility functions for handling winning or losing terminal states
     if game.is_loser(player):
         return float("-inf")
 
     if game.is_winner(player):
         return float("inf")
 
-    return float(len(game.get_legal_moves(player)) - len(game.get_legal_moves(game.get_opponent(player))))
+    # Initiliazing centrality weight
+    w = 1.0
+
+    # Infinite score for the center
+    if loc == (3,3):
+        return float("inf")
+    
+    # Punishing when scoring border boxes
+    if loc[0] in [0,game.height-1] or loc[1] in [0,game.width-1]:
+        w = 0.5
+
+    # Centrality weigthed difference of my moves vs my opponent moves
+    return w*float(len(game.get_legal_moves(player)) - len(game.get_legal_moves(game.get_opponent(player))))
 
 
 
@@ -233,10 +265,13 @@ class MinimaxPlayer(IsolationPlayer):
 
 
     def eval_minimax(self, game, depth, maximize=True):
+        """ Implementation of minimax algorithm 
+            Source: Based on https://en.wikipedia.org/wiki/Minimax#Pseudocode and
+            https://github.com/aimacode/aima-pseudocode/blob/master/md/Minimax-Decision.md (but without separating in three functions)"""
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # checking for terminal state
+        # checking for terminal state and if so, return utility and (-1, -1) move.
         if game.is_winner(game.active_player) or game.is_loser(game.active_player):
             return game.utility(self), (-1, -1)
 
@@ -244,13 +279,16 @@ class MinimaxPlayer(IsolationPlayer):
         if depth == 0:
             return self.score(game, self), (-1, -1)
 
+        # get possible moves
         possible_moves = game.get_legal_moves()
 
-        # maximizing or minimizing
+        # depending on the level (min or max), we set our initial best_score.
         if maximize:
             best_score = float('-inf')
         else:
             best_score = float('inf')
+
+        # initializing best_movement
         best_movement = (-1, -1)
 
         # for each possible move, we check the next level in the tree.
@@ -258,15 +296,18 @@ class MinimaxPlayer(IsolationPlayer):
             new_board = game.forecast_move(legal_move)
             score, movement = self.eval_minimax(new_board, depth - 1, not maximize)
 
+            # depending on the level (min or max), we evaluate if the movement is better than the best we've seen
             if maximize:
                 evaluation = (score >= best_score)
             else:
                 evaluation = (score <= best_score)
 
+            # shall it be better, we mark it as the best yet
             if evaluation:
                 best_score = score
                 best_movement = legal_move
 
+        # we return the best movement and it's score
         return best_score, best_movement
 
 
@@ -316,6 +357,8 @@ class AlphaBetaPlayer(IsolationPlayer):
         try:
             # The try/except block will automatically catch the exception
             # raised when the timer is about to expire.
+
+            # while the timer doesn't expire, we continue increasing depth iteratively
             depth = 1
             while True:
                 best_move = self.alphabeta(game, depth)
@@ -380,10 +423,14 @@ class AlphaBetaPlayer(IsolationPlayer):
         return movement
 
     def eval_alphabeta(self, game, depth, alpha, beta, maximize=True):
+        """ Structurally based on my minimax implementation plus
+            differences displayed between https://github.com/aimacode/aima-pseudocode/blob/master/md/Alpha-Beta-Search.md
+            and https://github.com/aimacode/aima-pseudocode/blob/master/md/Minimax-Decision.md
+        """
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # checking for terminal state
+        # checking for terminal state and if so, return utility and (-1, -1) move.
         if game.is_winner(game.active_player) or game.is_loser(game.active_player):
             return game.utility(self), (-1, -1), alpha, beta
 
@@ -393,11 +440,13 @@ class AlphaBetaPlayer(IsolationPlayer):
 
         possible_moves = game.get_legal_moves()
 
-        # maximizing or minimizing
+        # depending on the level (min or max), we set our initial best_score.
         if maximize:
             best_score = float('-inf')
         else:
             best_score = float('inf')
+
+        # initializing best_movement           
         best_movement = (-1, -1)
 
         # for each possible move, we check the next level in the tree.
@@ -405,6 +454,12 @@ class AlphaBetaPlayer(IsolationPlayer):
             new_board = game.forecast_move(legal_move)
             score, movement, alpha_tmp, beta_tmp = self.eval_alphabeta(new_board, depth - 1, alpha, beta, not maximize)
 
+            # depending on the level (min or max), we evaluate if the movement is better than the best we've seen
+            # initially we would reach the deepest level, and set the first (non infinity based) alpha or beta depending on the level (max or min)
+            # from then on, we prune when:
+            #   - We're maximizing and we find a score bigger than our current beta.
+            #   - We're minimizing and we find a score smaller than our current alpha. 
+            # if we don't prune, we check if it's bigger (max level) or smaller (min level) and set it as the new alpha or beta accordingly.
             if maximize:
                 evaluation = (score >= best_score)
                 if score >= beta:
