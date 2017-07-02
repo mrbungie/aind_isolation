@@ -47,7 +47,7 @@ def custom_score(game, player):
     remaining_moves = float(len(game.get_blank_spaces()))/float(game.height*game.width)
 
     # Centrality Weight
-    centrality_w = 1.0 - abs(float((loc[0] - game.height / 2. + loc[0] - game.height / 2.)))/float(game.width / 2. + game.height / 2.)
+    centrality_w = 1.0 - abs(float((loc[0] - game.height / 2. + loc[1] - game.width / 2.)))/float(game.width / 2. + game.height / 2.)
 
     # Centrality weigthed difference of my moves vs my opponent moves (weighted by porcentage of remaining moves)
     # As the game progresses the score moves from closed based to open based.
@@ -85,10 +85,10 @@ def custom_score_2(game, player):
         return float("inf")
 
     # Centrality Weight
-    w = 1.0 - abs(float((loc[0] - game.height / 2. + loc[0] - game.height / 2.)))/float(game.width / 2. + game.height / 2.)
+    centrality_w  = 1.0 - abs(float((loc[0] - game.height / 2. + loc[1] - game.width / 2.)))/float(game.width / 2. + game.height / 2.)
 
     # Centrality weigthed difference of my moves vs my opponent moves
-    return w*float(len(game.get_legal_moves(player)) - len(game.get_legal_moves(game.get_opponent(player))))
+    return centrality_w*float(len(game.get_legal_moves(player)) - len(game.get_legal_moves(game.get_opponent(player))))
 
 
 def custom_score_3(game, player):
@@ -126,7 +126,7 @@ def custom_score_3(game, player):
     w = 1.0
 
     # Infinite score for the center
-    if loc == (3,3):
+    if loc == (int(game.height / 2.),int(game.width / 2.)):
         return float("inf")
     
     # Punishing when scoring border boxes
